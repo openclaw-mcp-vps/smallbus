@@ -1,29 +1,74 @@
 import { NextResponse } from "next/server";
-import { scheduleInputSchema } from "@/lib/db/schema";
-import { createSchedule, listSchedules } from "@/lib/db/store";
+import { z } from "zod";
 
-export async function GET(): Promise<NextResponse> {
+import { getSessionContext, isRoleAtLeast } from "@/lib/auth";
+import { createSchedule, listSchedules } from "@/lib/database";
+
+const createScheduleSchema = z
+  .object({
+    routeId: z.number().int().positive(),
+    driverId: z.number().int().positive(),
+    startTime: z.string().datetime(),
+    endTime: z.string().datetime(),
+    vehicleCode: z.string().min(2),
+    status: z.enum(["planned", "active", "completed", "delayed"]),
+    notes: z.string().max(200).default(""),
+  })
+  .refine((value) => new Date(value.endTime) > new Date(value.startTime), {
+    message: "End time must be after start time.",
+    path: ["endTime"],
+  });
+
+export async function GET() {
+  const session = await getSessionContext();
+
+  if (!session.paid) {
+    return NextResponse.json(
+      { error: "Payment required to access schedule data." },
+      { status: 402 },
+    );
+  }
+
   const schedules = await listSchedules();
-  return NextResponse.json({ data: schedules });
+  return NextResponse.json({ schedules });
 }
 
-export async function POST(request: Request): Promise<NextResponse> {
-  const payload = await request.json().catch(() => null);
-  const parsed = scheduleInputSchema.safeParse(payload);
+export async function POST(request: Request) {
+  const session = await getSessionContext();
 
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  if (!session.paid) {
+    return NextResponse.json(
+      { error: "Payment required to create schedule entries." },
+      { status: 402 },
+    );
+  }
+
+  if (!isRoleAtLeast(session.role, "manager")) {
+    return NextResponse.json(
+      { error: "Manager role required to publish schedules." },
+      { status: 403 },
+    );
   }
 
   try {
-    const schedule = await createSchedule(parsed.data);
-    return NextResponse.json({ data: schedule }, { status: 201 });
+    const payload = createScheduleSchema.parse(await request.json());
+    const schedule = await createSchedule(payload);
+
+    return NextResponse.json({ schedule }, { status: 201 });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          error: "Invalid schedule payload.",
+          details: error.flatten(),
+        },
+        { status: 400 },
+      );
+    }
+
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Unable to create schedule"
-      },
-      { status: 400 }
+      { error: "Unable to create schedule entry." },
+      { status: 500 },
     );
   }
 }

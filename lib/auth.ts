@@ -1,57 +1,94 @@
 import { cookies } from "next/headers";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import type { UserRole } from "@/lib/types";
+import { redirect } from "next/navigation";
+import type { NextResponse } from "next/server";
 
-export const ACCESS_COOKIE_NAME = "smallbus_access";
-export const ROLE_COOKIE_NAME = "smallbus_role";
+export type UserRole = "dispatcher" | "manager" | "owner";
 
-const roleList: UserRole[] = ["manager", "dispatcher", "viewer"];
+export const ACCESS_COOKIE = "smallbus_paid";
+export const ROLE_COOKIE = "smallbus_role";
 
-export function sanitizeRole(input: unknown): UserRole {
-  if (typeof input !== "string") {
-    return "viewer";
+const rolePriority: Record<UserRole, number> = {
+  dispatcher: 1,
+  manager: 2,
+  owner: 3,
+};
+
+export function isRoleAtLeast(role: UserRole, minimumRole: UserRole) {
+  return rolePriority[role] >= rolePriority[minimumRole];
+}
+
+function normalizeRole(value?: string): UserRole {
+  if (value === "dispatcher" || value === "manager" || value === "owner") {
+    return value;
   }
 
-  return roleList.includes(input as UserRole) ? (input as UserRole) : "viewer";
+  return "manager";
 }
 
-export function hasPaidAccessFromRequest(request: NextRequest): boolean {
-  return request.cookies.get(ACCESS_COOKIE_NAME)?.value === "active";
-}
-
-export function readRoleFromRequest(request: NextRequest): UserRole {
-  return sanitizeRole(request.cookies.get(ROLE_COOKIE_NAME)?.value);
-}
-
-export async function readAccessFromCookies(): Promise<{ hasAccess: boolean; role: UserRole }> {
+export async function getSessionContext() {
   const store = await cookies();
+  const paid = store.get(ACCESS_COOKIE)?.value === "true";
+  const role = normalizeRole(store.get(ROLE_COOKIE)?.value);
 
   return {
-    hasAccess: store.get(ACCESS_COOKIE_NAME)?.value === "active",
-    role: sanitizeRole(store.get(ROLE_COOKIE_NAME)?.value)
+    paid,
+    role,
   };
 }
 
-export function applyAccessCookies(response: NextResponse, role: UserRole): NextResponse {
-  const maxAge = 60 * 60 * 24 * 30;
-  const common = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge
-  };
+export async function requirePaidAccess(minimumRole: UserRole = "dispatcher") {
+  const session = await getSessionContext();
 
-  response.cookies.set(ACCESS_COOKIE_NAME, "active", common);
-  response.cookies.set(ROLE_COOKIE_NAME, role, common);
+  if (!session.paid) {
+    redirect("/?paywall=locked#pricing");
+  }
+
+  if (!isRoleAtLeast(session.role, minimumRole)) {
+    redirect("/dashboard/routes?access=denied");
+  }
+
+  return session;
+}
+
+export function applyPaidAccessCookie(
+  response: NextResponse,
+  role: UserRole = "manager",
+) {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  response.cookies.set(ACCESS_COOKIE, "true", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  response.cookies.set(ROLE_COOKIE, role, {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
 
   return response;
 }
 
-export function clearAccessCookies(response: NextResponse): NextResponse {
-  response.cookies.set(ACCESS_COOKIE_NAME, "", { maxAge: 0, path: "/" });
-  response.cookies.set(ROLE_COOKIE_NAME, "", { maxAge: 0, path: "/" });
+export function clearPaidAccessCookie(response: NextResponse) {
+  response.cookies.set(ACCESS_COOKIE, "false", {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+
+  response.cookies.set(ROLE_COOKIE, "manager", {
+    httpOnly: false,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
 
   return response;
 }

@@ -1,0 +1,32 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#132747"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(930 110) rotate(140) scale(520 350)">
+      <stop stop-color="#2f81f7" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#2f81f7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <g opacity="0.2" stroke="#6aa9ff" stroke-width="2">
+    <path d="M120 470H1080"/>
+    <path d="M120 420H1080"/>
+    <path d="M120 370H1080"/>
+  </g>
+  <rect x="110" y="140" width="220" height="150" rx="24" fill="#1a3154" stroke="#5f9fff"/>
+  <circle cx="165" cy="310" r="18" fill="#0d1117" stroke="#9ec7ff" stroke-width="6"/>
+  <circle cx="275" cy="310" r="18" fill="#0d1117" stroke="#9ec7ff" stroke-width="6"/>
+  <rect x="138" y="168" width="164" height="56" rx="12" fill="#0f1f36"/>
+  <text x="380" y="250" fill="#e8f1ff" font-family="Sora, sans-serif" font-size="72" font-weight="700">
+    small_bus
+  </text>
+  <text x="380" y="320" fill="#b8c9e6" font-family="Sora, sans-serif" font-size="34">
+    Route planning, driver scheduling, and rider alerts
+  </text>
+  <text x="380" y="370" fill="#8aa6d2" font-family="IBM Plex Mono, monospace" font-size="24">
+    Dispatch in minutes. No enterprise bloat.
+  </text>
+</svg>

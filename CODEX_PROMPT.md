@@ -14,24 +14,21 @@ ARCHITECTURE SPEC:
 Next.js SaaS with PostgreSQL backend for route management, driver scheduling, and real-time passenger notifications. Clean dashboard interface with mobile-responsive design for field operations. Lemon Squeezy handles subscriptions with role-based access control.
 
 PLANNED FILES:
-- app/dashboard/page.tsx
-- app/routes/page.tsx
-- app/drivers/page.tsx
-- app/schedule/page.tsx
-- app/notifications/page.tsx
+- app/dashboard/routes/page.tsx
+- app/dashboard/drivers/page.tsx
+- app/dashboard/schedule/page.tsx
+- app/dashboard/notifications/page.tsx
 - app/api/routes/route.ts
 - app/api/drivers/route.ts
 - app/api/schedule/route.ts
-- app/api/notifications/route.ts
-- app/api/webhooks/lemonsqueezy/route.ts
-- lib/db/schema.ts
-- lib/auth.ts
 - components/RouteMap.tsx
 - components/ScheduleCalendar.tsx
 - components/DriverAssignment.tsx
-- components/NotificationCenter.tsx
+- lib/database.ts
+- lib/auth.ts
+- lib/lemon-squeezy.ts
 
-DEPENDENCIES: next, tailwindcss, drizzle-orm, postgres, @auth/drizzle-adapter, next-auth, @lemonsqueezy/lemonsqueezy.js, react-big-calendar, leaflet, react-leaflet, date-fns, zod, react-hook-form, lucide-react, recharts
+DEPENDENCIES: next, tailwindcss, @supabase/supabase-js, next-auth, @lemonsqueezy/lemonsqueezy.js, react-big-calendar, leaflet, react-leaflet, date-fns, zod, react-hook-form, lucide-react
 
 REQUIREMENTS:
 - Next.js 15 with App Router (app/ directory)
