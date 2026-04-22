@@ -1,63 +1,43 @@
-import crypto from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { recordBillingEvent } from "@/lib/db/store";
+import { addPaidCustomer } from "@/lib/db";
 
-function verifySignature(rawBody: string, signature: string, secret: string): boolean {
-  const digest = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  const normalizedSignature = signature.replace(/^sha256=/u, "").trim();
-
-  if (normalizedSignature.length !== digest.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(normalizedSignature));
-}
-
-export async function POST(request: Request): Promise<NextResponse> {
-  const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
-
-  if (!secret) {
-    return NextResponse.json({ error: "Webhook secret is not configured" }, { status: 500 });
-  }
-
-  const signature = request.headers.get("x-signature") ?? "";
+export async function POST(request: Request) {
+  const webhookSecret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
+  const signature = request.headers.get("x-signature");
   const rawBody = await request.text();
 
-  if (!signature) {
-    return NextResponse.json({ error: "Missing signature" }, { status: 401 });
-  }
-
-  try {
-    if (!verifySignature(rawBody, signature, secret)) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  if (webhookSecret && signature) {
+    const expected = createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
+    try {
+      if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+        return NextResponse.json({ error: "Invalid Lemon Squeezy signature" }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: "Invalid Lemon Squeezy signature" }, { status: 400 });
     }
-  } catch {
-    return NextResponse.json({ error: "Invalid signature format" }, { status: 401 });
   }
 
   const payload = JSON.parse(rawBody) as {
-    meta?: { event_name?: string };
+    meta?: {
+      event_name?: string;
+      custom_data?: {
+        email?: string;
+      };
+    };
     data?: {
-      id?: string;
       attributes?: {
         user_email?: string;
-        customer_email?: string;
-        status?: string;
       };
     };
   };
 
-  const eventName = payload.meta?.event_name ?? "unknown";
-  const attributes = payload.data?.attributes ?? {};
-  const customerEmail = attributes.user_email ?? attributes.customer_email ?? "unknown@unknown";
-  const orderId = payload.data?.id ?? "unknown-order";
+  const eventName = payload.meta?.event_name;
+  const email = payload.data?.attributes?.user_email ?? payload.meta?.custom_data?.email;
 
-  await recordBillingEvent({
-    event_name: eventName,
-    customer_email: customerEmail,
-    order_id: orderId,
-    payload: JSON.stringify(payload)
-  });
+  if (eventName && eventName.includes("order") && email) {
+    await addPaidCustomer(email, "lemonsqueezy");
+  }
 
   return NextResponse.json({ received: true });
 }

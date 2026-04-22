@@ -1,261 +1,245 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { IdCard, Loader2, Plus, UserRound } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
-
+import { io, type Socket } from "socket.io-client";
+import { Trash2 } from "lucide-react";
+import { DriverAssignment } from "@/components/DriverAssignment";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { Driver, DriverStatus } from "@/lib/database";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
+import type { DriverRecord } from "@/lib/db/schema";
 
-const driverSchema = z.object({
-  name: z.string().min(3, "Driver name is required."),
-  phone: z.string().min(7, "Phone number is required."),
-  licenseNumber: z.string().min(5, "License number is required."),
-  status: z.enum(["available", "on-route", "off-duty", "leave"]),
-});
-
-type DriverForm = z.infer<typeof driverSchema>;
-
-type DriversApiResponse = {
-  drivers: Driver[];
+type DriverFormInput = {
+  name: string;
+  phone: string;
+  licenseNumber: string;
+  maxHoursPerDay: number;
 };
 
-const statusOptions: DriverStatus[] = [
-  "available",
-  "on-route",
-  "off-duty",
-  "leave",
-];
+function statusVariant(status: DriverRecord["status"]) {
+  if (status === "available") {
+    return "success" as const;
+  }
+
+  if (status === "on_route") {
+    return "warning" as const;
+  }
+
+  return "neutral" as const;
+}
 
 export default function DriversPage() {
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [apiError, setApiError] = useState<string | null>(null);
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<DriverForm>({
-    resolver: zodResolver(driverSchema),
+  const [drivers, setDrivers] = useState<DriverRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const { register, handleSubmit, reset } = useForm<DriverFormInput>({
     defaultValues: {
-      name: "",
-      phone: "",
-      licenseNumber: "",
-      status: "available",
-    },
+      maxHoursPerDay: 8
+    }
   });
 
-  const statusCounts = useMemo(() => {
-    return statusOptions.reduce<Record<DriverStatus, number>>(
-      (acc, status) => {
-        acc[status] = drivers.filter((driver) => driver.status === status).length;
-        return acc;
-      },
-      {
-        available: 0,
-        "on-route": 0,
-        "off-duty": 0,
-        leave: 0,
-      },
-    );
+  const summary = useMemo(() => {
+    const available = drivers.filter((driver) => driver.status === "available").length;
+    const onRoute = drivers.filter((driver) => driver.status === "on_route").length;
+    return { available, onRoute, total: drivers.length };
   }, [drivers]);
 
-  async function fetchDrivers() {
-    setIsLoading(true);
-    setApiError(null);
-
-    try {
-      const response = await fetch("/api/drivers", { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error("Could not load drivers.");
-      }
-
-      const payload = (await response.json()) as DriversApiResponse;
-      setDrivers(payload.drivers);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Could not load drivers.";
-      setApiError(message);
-    } finally {
-      setIsLoading(false);
+  async function refreshDrivers() {
+    const response = await fetch("/api/drivers", { cache: "no-store" });
+    if (!response.ok) {
+      return;
     }
+
+    const payload = (await response.json()) as { drivers: DriverRecord[] };
+    setDrivers(payload.drivers);
   }
 
   useEffect(() => {
-    void fetchDrivers();
+    refreshDrivers();
+
+    let socket: Socket | undefined;
+
+    const connectSocket = async () => {
+      await fetch("/api/socket");
+      socket = io({ path: "/api/socket_io" });
+
+      socket.on("smallbus:event", (event: { type: string }) => {
+        if (event.type === "drivers.updated") {
+          refreshDrivers();
+        }
+      });
+    };
+
+    connectSocket();
+
+    return () => {
+      socket?.disconnect();
+    };
   }, []);
 
-  async function onSubmit(values: DriverForm) {
-    setApiError(null);
+  const onSubmit = handleSubmit(async (data) => {
+    setLoading(true);
+    setErrorMessage("");
 
-    try {
-      const response = await fetch("/api/drivers", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(values),
-      });
+    const response = await fetch("/api/drivers", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: data.name,
+        phone: data.phone,
+        licenseNumber: data.licenseNumber,
+        status: "available",
+        maxHoursPerDay: Number(data.maxHoursPerDay)
+      })
+    });
 
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error || "Failed to add driver.");
-      }
-
-      const payload = (await response.json()) as { driver: Driver };
-      setDrivers((prev) => [...prev, payload.driver]);
-      reset({ name: "", phone: "", licenseNumber: "", status: "available" });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to add driver.";
-      setApiError(message);
+    if (!response.ok) {
+      const payload = (await response.json()) as { error?: string };
+      setErrorMessage(payload.error ?? "Unable to save driver");
+      setLoading(false);
+      return;
     }
-  }
+
+    reset({ maxHoursPerDay: 8 });
+    await refreshDrivers();
+    setLoading(false);
+  });
+
+  const updateStatus = async (driverId: number, status: DriverRecord["status"]) => {
+    await fetch(`/api/drivers/${driverId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ status })
+    });
+
+    await refreshDrivers();
+  };
+
+  const removeDriver = async (driverId: number) => {
+    await fetch(`/api/drivers/${driverId}`, {
+      method: "DELETE"
+    });
+
+    await refreshDrivers();
+  };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-      <section className="space-y-4 rounded-2xl border border-border bg-card/80 p-4">
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.12em] text-blue-200">
-            Driver roster
-          </p>
-          <h2 className="font-heading text-xl font-semibold text-white">
-            Add and manage driver availability
-          </h2>
-        </header>
-
-        <form className="space-y-3" onSubmit={handleSubmit(onSubmit)}>
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-200">Full Name</span>
-            <input
-              className="w-full rounded-lg border border-border bg-[#111a2a] px-3 py-2"
-              placeholder="Maria Alvarez"
-              {...register("name")}
-            />
-            {errors.name ? (
-              <span className="mt-1 block text-xs text-red-300">{errors.name.message}</span>
-            ) : null}
-          </label>
-
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-200">Phone</span>
-            <input
-              className="w-full rounded-lg border border-border bg-[#111a2a] px-3 py-2"
-              placeholder="+1-555-0101"
-              {...register("phone")}
-            />
-            {errors.phone ? (
-              <span className="mt-1 block text-xs text-red-300">{errors.phone.message}</span>
-            ) : null}
-          </label>
-
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-200">License Number</span>
-            <input
-              className="w-full rounded-lg border border-border bg-[#111a2a] px-3 py-2"
-              placeholder="TX-008214"
-              {...register("licenseNumber")}
-            />
-            {errors.licenseNumber ? (
-              <span className="mt-1 block text-xs text-red-300">
-                {errors.licenseNumber.message}
-              </span>
-            ) : null}
-          </label>
-
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-200">Status</span>
-            <select
-              className="w-full rounded-lg border border-border bg-[#111a2a] px-3 py-2"
-              {...register("status")}
-            >
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <Button
-            type="submit"
-            className="w-full bg-blue-500 hover:bg-blue-400"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Plus className="size-4" />
-            )}
-            Add Driver
-          </Button>
-        </form>
-
-        {apiError ? (
-          <p className="rounded-lg border border-red-300/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-            {apiError}
-          </p>
-        ) : null}
-      </section>
-
-      <section className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {statusOptions.map((status) => (
-            <article
-              key={status}
-              className="rounded-xl border border-border bg-[#111a2a] p-3"
-            >
-              <p className="text-xs uppercase tracking-[0.1em] text-muted-foreground">
-                {status}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-white">{statusCounts[status]}</p>
-            </article>
-          ))}
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-bold text-[#f0f6fc]">Driver Scheduling</h1>
+        <p className="text-sm text-[#8b949e]">Manage active operators, license records, and daily availability.</p>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <Badge variant="success">Available: {summary.available}</Badge>
+          <Badge variant="warning">On Route: {summary.onRoute}</Badge>
+          <Badge variant="neutral">Total Drivers: {summary.total}</Badge>
         </div>
+      </header>
 
-        <div className="rounded-2xl border border-border bg-card/80 p-4">
-          <h2 className="mb-4 font-heading text-xl font-semibold text-white">
-            Driver directory
-          </h2>
+      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Add Driver</CardTitle>
+            <CardDescription>Capture contact details and max daily hours before assignments begin.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full name</Label>
+                <Input id="name" placeholder="Jordan Maxwell" {...register("name", { required: true })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input id="phone" placeholder="+1-512-555-0133" {...register("phone", { required: true })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="licenseNumber">License number</Label>
+                <Input id="licenseNumber" placeholder="TX-CDL-44882" {...register("licenseNumber", { required: true })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxHoursPerDay">Max hours/day</Label>
+                <Input
+                  id="maxHoursPerDay"
+                  type="number"
+                  min={4}
+                  max={16}
+                  {...register("maxHoursPerDay", { valueAsNumber: true })}
+                />
+              </div>
+              {errorMessage ? <p className="text-sm text-[#f85149]">{errorMessage}</p> : null}
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? "Saving driver..." : "Save driver"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-          {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Loading drivers...
-            </div>
-          ) : drivers.length ? (
-            <div className="grid gap-3 md:grid-cols-2">
+        <DriverAssignment drivers={drivers} onStatusChange={updateStatus} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Driver Directory</CardTitle>
+          <CardDescription>Current roster with availability and compliance details.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>License</TableHead>
+                <TableHead>Max Hours</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {drivers.map((driver) => (
-                <article
-                  key={driver.id}
-                  className="space-y-2 rounded-xl border border-border bg-[#111a2a] p-3"
-                >
-                  <p className="flex items-center gap-2 font-medium text-slate-100">
-                    <UserRound className="size-4 text-blue-300" />
-                    {driver.name}
-                  </p>
-                  <p className="text-xs text-slate-300">{driver.phone}</p>
-                  <p className="flex items-center gap-1 text-xs text-slate-300">
-                    <IdCard className="size-3.5" />
-                    {driver.licenseNumber}
-                  </p>
-                  <span className="inline-flex rounded-full bg-[#1f3354] px-2 py-1 text-xs text-blue-100">
-                    {driver.status}
-                  </span>
-                </article>
+                <TableRow key={driver.id}>
+                  <TableCell className="font-medium text-[#f0f6fc]">{driver.name}</TableCell>
+                  <TableCell>{driver.phone}</TableCell>
+                  <TableCell>{driver.licenseNumber}</TableCell>
+                  <TableCell>{driver.maxHoursPerDay}h</TableCell>
+                  <TableCell>
+                    <Badge variant={statusVariant(driver.status)}>{driver.status.replace("_", " ")}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      type="button"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#f85149] hover:bg-[#161b22]"
+                      onClick={() => removeDriver(driver.id)}
+                      aria-label={`Delete ${driver.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-              No drivers yet. Add your first operator from the form.
-            </div>
-          )}
-        </div>
-      </section>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

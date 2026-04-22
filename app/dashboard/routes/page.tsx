@@ -1,354 +1,269 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Loader2, MapPinned, Plus, Route as RouteIcon } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
-
-import RouteMap from "@/components/RouteMap";
+import { io, type Socket } from "socket.io-client";
+import { Trash2 } from "lucide-react";
+import type { RouteRecord, RouteStopPoint } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
-import type { BusRoute, RouteStop } from "@/lib/database";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 
-const routeSchema = z.object({
-  name: z.string().min(3, "Route name should be at least 3 characters."),
-  startStop: z.string().min(2, "Start stop is required."),
-  endStop: z.string().min(2, "End stop is required."),
-  distanceKm: z.number().positive("Distance must be greater than 0."),
-  active: z.boolean(),
-  stopsText: z
-    .string()
-    .min(10, "Add at least two stops in the format stop|lat|lng."),
+const RouteMap = dynamic(() => import("@/components/RouteMap").then((mod) => mod.RouteMap), {
+  ssr: false
 });
 
-type RouteForm = z.infer<typeof routeSchema>;
-
-type RoutesApiResponse = {
-  routes: BusRoute[];
+type RouteFormInput = {
+  name: string;
+  origin: string;
+  destination: string;
+  stops: string;
+  estimatedMinutes: number;
 };
 
-function parseStops(stopsText: string) {
-  const stops = stopsText
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [name, latText, lngText] = line.split("|").map((piece) => piece.trim());
+function generatePath(stops: string[]): RouteStopPoint[] {
+  const baseLat = 30.2672;
+  const baseLng = -97.7431;
 
-      if (!name || !latText || !lngText) {
-        throw new Error(
-          "Each stop must follow: Stop Name|Latitude|Longitude",
-        );
-      }
+  return stops.map((label, index) => {
+    const lat = baseLat + index * 0.032 + (Math.random() * 0.012 - 0.006);
+    const lng = baseLng + index * 0.025 + (Math.random() * 0.012 - 0.006);
 
-      const lat = Number(latText);
-      const lng = Number(lngText);
-
-      if (Number.isNaN(lat) || lat < -90 || lat > 90) {
-        throw new Error(`Invalid latitude for stop \"${name}\".`);
-      }
-
-      if (Number.isNaN(lng) || lng < -180 || lng > 180) {
-        throw new Error(`Invalid longitude for stop \"${name}\".`);
-      }
-
-      return {
-        name,
-        lat,
-        lng,
-      } satisfies RouteStop;
-    });
-
-  if (stops.length < 2) {
-    throw new Error("Add at least two stops to build a route.");
-  }
-
-  return stops;
+    return {
+      label,
+      lat,
+      lng
+    };
+  });
 }
 
 export default function RoutesPage() {
-  const [routes, setRoutes] = useState<BusRoute[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<RouteRecord[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<RouteForm>({
-    resolver: zodResolver(routeSchema),
+  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { register, handleSubmit, reset } = useForm<RouteFormInput>({
     defaultValues: {
-      name: "",
-      startStop: "",
-      endStop: "",
-      distanceKm: 12,
-      active: true,
-      stopsText:
-        "Depot A|38.9724|-95.2441\nCedar & 9th|38.9808|-95.2329\nRidge Medical Center|39.0041|-95.2274",
-    },
+      estimatedMinutes: 45
+    }
   });
 
-  const selectedRoute = useMemo(
-    () => routes.find((route) => route.id === selectedRouteId) ?? routes[0],
-    [routes, selectedRouteId],
-  );
-
-  const fetchRoutes = useCallback(async () => {
-    setIsLoading(true);
-    setApiError(null);
-
-    try {
-      const response = await fetch("/api/routes", { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error("Could not load routes.");
-      }
-
-      const payload = (await response.json()) as RoutesApiResponse;
-      setRoutes(payload.routes);
-      if (payload.routes.length) {
-        setSelectedRouteId((current) => current ?? payload.routes[0].id);
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Could not load routes.";
-      setApiError(message);
-    } finally {
-      setIsLoading(false);
+  async function refreshRoutes() {
+    const response = await fetch("/api/routes", { cache: "no-store" });
+    if (!response.ok) {
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    void fetchRoutes();
-  }, [fetchRoutes]);
+    const payload = (await response.json()) as { routes: RouteRecord[] };
+    setRoutes(payload.routes);
 
-  async function onSubmit(values: RouteForm) {
-    setApiError(null);
-
-    try {
-      const stops = parseStops(values.stopsText);
-
-      const response = await fetch("/api/routes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: values.name,
-          startStop: values.startStop,
-          endStop: values.endStop,
-          distanceKm: values.distanceKm,
-          active: values.active,
-          stops,
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error || "Failed to create route.");
-      }
-
-      const payload = (await response.json()) as { route: BusRoute };
-      setRoutes((prev) => [payload.route, ...prev]);
-      setSelectedRouteId(payload.route.id);
-      reset({
-        name: "",
-        startStop: "",
-        endStop: "",
-        distanceKm: values.distanceKm,
-        active: true,
-        stopsText: values.stopsText,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to create route.";
-      setApiError(message);
+    if (!selectedRouteId && payload.routes[0]) {
+      setSelectedRouteId(payload.routes[0].id);
     }
   }
 
+  useEffect(() => {
+    refreshRoutes();
+
+    let socket: Socket | undefined;
+
+    const connectSocket = async () => {
+      await fetch("/api/socket");
+      socket = io({ path: "/api/socket_io" });
+
+      socket.on("smallbus:event", (event: { type: string }) => {
+        if (event.type === "routes.updated") {
+          refreshRoutes();
+        }
+      });
+    };
+
+    connectSocket();
+
+    return () => {
+      socket?.disconnect();
+    };
+  }, []);
+
+  const onSubmit = handleSubmit(async (data) => {
+    setLoading(true);
+    setErrorMessage("");
+
+    const stops = data.stops
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    const response = await fetch("/api/routes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: data.name,
+        origin: data.origin,
+        destination: data.destination,
+        stops,
+        path: generatePath(stops),
+        estimatedMinutes: Number(data.estimatedMinutes),
+        active: true
+      })
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { error?: string };
+      setErrorMessage(payload.error ?? "Could not save route");
+      setLoading(false);
+      return;
+    }
+
+    reset({ estimatedMinutes: 45, stops: "" });
+    await refreshRoutes();
+    setLoading(false);
+  });
+
+  const removeRoute = async (routeId: number) => {
+    await fetch(`/api/routes/${routeId}`, {
+      method: "DELETE"
+    });
+
+    await refreshRoutes();
+  };
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-      <section className="space-y-4 rounded-2xl border border-border bg-card/80 p-4">
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.12em] text-blue-200">
-            Route planner
-          </p>
-          <h2 className="font-heading text-xl font-semibold text-white">
-            Build a route in under 60 seconds
-          </h2>
-        </header>
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-bold text-[#f0f6fc]">Route Planning</h1>
+        <p className="mt-1 text-sm text-[#8b949e]">
+          Design reliable service loops, preview stop order, and keep travel times realistic for dispatch.
+        </p>
+      </header>
 
-        <form className="space-y-3" onSubmit={handleSubmit(onSubmit)}>
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-200">Route Name</span>
-            <input
-              className="w-full rounded-lg border border-border bg-[#111a2a] px-3 py-2 text-sm"
-              placeholder="North Connector AM"
-              {...register("name")}
-            />
-            {errors.name ? (
-              <span className="mt-1 block text-xs text-red-300">{errors.name.message}</span>
-            ) : null}
-          </label>
+      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Create Route</CardTitle>
+            <CardDescription>
+              Enter route details and stop sequence. Map coordinates are generated automatically for quick planning.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Route name</Label>
+                <Input id="name" placeholder="East Valley Shuttle" {...register("name", { required: true })} />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="origin">Origin</Label>
+                  <Input id="origin" placeholder="Hillside Depot" {...register("origin", { required: true })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="destination">Destination</Label>
+                  <Input
+                    id="destination"
+                    placeholder="Downtown Transfer"
+                    {...register("destination", { required: true })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stops">Stops (comma-separated)</Label>
+                <Input
+                  id="stops"
+                  placeholder="Hillside Depot, Riverfront, Main St, Downtown Transfer"
+                  {...register("stops", { required: true })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="estimatedMinutes">Estimated run time (minutes)</Label>
+                <Input
+                  id="estimatedMinutes"
+                  type="number"
+                  min={10}
+                  max={960}
+                  {...register("estimatedMinutes", { required: true, valueAsNumber: true })}
+                />
+              </div>
+              {errorMessage ? <p className="text-sm text-[#f85149]">{errorMessage}</p> : null}
+              <Button type="submit" disabled={loading} className="w-full">
+                {loading ? "Saving route..." : "Save route"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-200">Start Stop</span>
-              <input
-                className="w-full rounded-lg border border-border bg-[#111a2a] px-3 py-2 text-sm"
-                placeholder="Depot B"
-                {...register("startStop")}
-              />
-              {errors.startStop ? (
-                <span className="mt-1 block text-xs text-red-300">
-                  {errors.startStop.message}
-                </span>
-              ) : null}
-            </label>
+        <Card>
+          <CardHeader>
+            <CardTitle>Route Map</CardTitle>
+            <CardDescription>Click a route in the table to focus the map and inspect stop order.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RouteMap routes={routes} selectedRouteId={selectedRouteId} />
+          </CardContent>
+        </Card>
+      </div>
 
-            <label className="block text-sm">
-              <span className="mb-1 block text-slate-200">End Stop</span>
-              <input
-                className="w-full rounded-lg border border-border bg-[#111a2a] px-3 py-2 text-sm"
-                placeholder="Industrial Park"
-                {...register("endStop")}
-              />
-              {errors.endStop ? (
-                <span className="mt-1 block text-xs text-red-300">{errors.endStop.message}</span>
-              ) : null}
-            </label>
-          </div>
-
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-200">Distance (km)</span>
-            <input
-              type="number"
-              min={1}
-              step="0.1"
-              className="w-full rounded-lg border border-border bg-[#111a2a] px-3 py-2 text-sm"
-              {...register("distanceKm", { valueAsNumber: true })}
-            />
-            {errors.distanceKm ? (
-              <span className="mt-1 block text-xs text-red-300">
-                {errors.distanceKm.message}
-              </span>
-            ) : null}
-          </label>
-
-          <label className="flex items-center gap-2 text-sm text-slate-200">
-            <input type="checkbox" {...register("active")} />
-            Route is active for dispatch
-          </label>
-
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-200">
-              Stops (one per line, format: <code>name|lat|lng</code>)
-            </span>
-            <textarea
-              rows={6}
-              className="w-full rounded-lg border border-border bg-[#111a2a] px-3 py-2 text-sm"
-              {...register("stopsText")}
-            />
-            {errors.stopsText ? (
-              <span className="mt-1 block text-xs text-red-300">
-                {errors.stopsText.message}
-              </span>
-            ) : null}
-          </label>
-
-          <Button
-            type="submit"
-            className="w-full bg-blue-500 hover:bg-blue-400"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Plus className="size-4" />
-            )}
-            Save Route
-          </Button>
-        </form>
-
-        {apiError ? (
-          <p className="rounded-lg border border-red-300/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-            {apiError}
-          </p>
-        ) : null}
-      </section>
-
-      <section className="space-y-4">
-        <div className="rounded-2xl border border-border bg-card/80 p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-heading text-xl font-semibold text-white">
-              Active route board
-            </h2>
-            <span className="text-sm text-muted-foreground">
-              {routes.length} total routes
-            </span>
-          </div>
-
-          {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Loading routes...
-            </div>
-          ) : routes.length ? (
-            <div className="grid gap-3 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Configured Routes</CardTitle>
+          <CardDescription>{routes.length} active route definitions</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Origin</TableHead>
+                <TableHead>Destination</TableHead>
+                <TableHead>Stops</TableHead>
+                <TableHead>Minutes</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {routes.map((route) => (
-                <button
-                  key={route.id}
-                  type="button"
-                  onClick={() => setSelectedRouteId(route.id)}
-                  className={`space-y-2 rounded-xl border p-3 text-left transition ${
-                    selectedRoute?.id === route.id
-                      ? "border-blue-300/50 bg-blue-500/10"
-                      : "border-border bg-[#111a2a] hover:bg-[#16233a]"
-                  }`}
-                >
-                  <p className="flex items-center gap-2 font-medium text-slate-100">
-                    <RouteIcon className="size-4 text-blue-300" />
-                    {route.name}
-                  </p>
-                  <p className="text-xs text-slate-300">
-                    {route.startStop} → {route.endStop}
-                  </p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{route.distanceKm.toFixed(1)} km</span>
-                    <span>•</span>
-                    <span>{route.stops.length} stops</span>
-                    <span>•</span>
-                    <span>{route.active ? "Active" : "Paused"}</span>
-                  </div>
-                </button>
+                <TableRow key={route.id} onClick={() => setSelectedRouteId(route.id)} className="cursor-pointer">
+                  <TableCell className="font-medium text-[#f0f6fc]">{route.name}</TableCell>
+                  <TableCell>{route.origin}</TableCell>
+                  <TableCell>{route.destination}</TableCell>
+                  <TableCell>{route.stops.length}</TableCell>
+                  <TableCell>{route.estimatedMinutes}</TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      type="button"
+                      aria-label={`Delete route ${route.name}`}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#f85149] hover:bg-[#161b22]"
+                      onClick={async (event) => {
+                        event.stopPropagation();
+                        await removeRoute(route.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-              No routes yet. Add your first route from the form.
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-border bg-card/80 p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <MapPinned className="size-4 text-blue-300" />
-            <h3 className="font-heading text-lg font-semibold text-white">
-              {selectedRoute ? `${selectedRoute.name} map view` : "Route map"}
-            </h3>
-          </div>
-
-          {selectedRoute ? (
-            <RouteMap routeName={selectedRoute.name} stops={selectedRoute.stops} />
-          ) : (
-            <div className="flex h-[360px] items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
-              <AlertCircle className="mr-2 size-4" />
-              Select a route to visualize stops.
-            </div>
-          )}
-        </div>
-      </section>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

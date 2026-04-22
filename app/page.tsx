@@ -1,231 +1,177 @@
 import Link from "next/link";
-import {
-  AlarmClock,
-  ArrowRight,
-  BellRing,
-  CalendarRange,
-  CircleCheck,
-  MapPinned,
-  Route,
-  Shield,
-} from "lucide-react";
-
-import CheckoutButton from "@/components/CheckoutButton";
-import { Button } from "@/components/ui/button";
-import { getSessionContext } from "@/lib/auth";
+import { ArrowRight, Bell, Bus, CalendarClock, ChartLine, ShieldCheck } from "lucide-react";
 
 const faqItems = [
   {
-    question: "How quickly can our team switch from spreadsheets?",
+    question: "How quickly can we move from spreadsheets to small_bus?",
     answer:
-      "Most operators move their first route set in under an hour. small_bus starts with route, driver, and schedule views that mirror how dispatch teams already work.",
+      "Most teams import routes and active runs in under two hours. Drivers can start using mobile-friendly schedule views on day one with no dedicated training lead."
   },
   {
-    question: "Can dispatchers use this from a phone in the field?",
+    question: "Does this work for fixed and demand-response service?",
     answer:
-      "Yes. The dashboard is mobile responsive, so supervisors can check assignments, route updates, and passenger notices from the yard or from a stop.",
+      "Yes. You can set fixed loops, airport connectors, and flexible community pickups in the same workspace. Dispatchers can adjust assignments in real time."
   },
   {
-    question: "Do we need enterprise onboarding or consulting?",
+    question: "What does onboarding cost?",
     answer:
-      "No. The product is built for small fleets. You can launch with your own data and workflows without external implementation teams.",
+      "There is no onboarding fee. You pay a flat $15 monthly subscription and can cancel anytime from your billing portal."
   },
   {
-    question: "How does payment and access work?",
+    question: "Do riders receive delay alerts?",
     answer:
-      "Payment runs through Lemon Squeezy checkout. After successful purchase, small_bus grants a secure access cookie and unlocks the full operations workspace.",
-  },
+      "Dispatch can send SMS, email, or push alerts from the notification panel and monitor delivery status in a single timeline."
+  }
 ];
 
-const featurePoints = [
-  {
-    title: "Route Planning",
-    description:
-      "Define multi-stop routes, view stop sequences on a live map, and keep route details centralized for every dispatcher.",
-    icon: Route,
-  },
-  {
-    title: "Driver Scheduling",
-    description:
-      "Assign drivers to route blocks with vehicle codes and status tracking so managers can see coverage gaps before they become missed pickups.",
-    icon: CalendarRange,
-  },
-  {
-    title: "Passenger Notifications",
-    description:
-      "Send updates by SMS, email, or in-app target groups whenever departure times shift or service windows change.",
-    icon: BellRing,
-  },
-];
-
-export default async function HomePage() {
-  const session = await getSessionContext();
-
+export default function HomePage() {
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-20 pt-10 sm:px-8">
-      <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
-        <div className="absolute left-0 top-20 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="absolute right-0 top-56 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
-      </div>
-
-      <header className="rounded-3xl border border-border bg-[linear-gradient(140deg,#0f1a2d_0%,#111d33_45%,#162746_100%)] p-6 sm:p-10">
-        <nav className="mb-10 flex items-center justify-between">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-300/20 bg-blue-400/10 px-3 py-1 text-xs uppercase tracking-[0.12em] text-blue-200">
-            <MapPinned className="size-3.5" />
-            small_bus
-          </div>
-          <Link
-            href="#pricing"
-            className="text-sm font-medium text-blue-200 transition hover:text-blue-100"
-          >
-            Pricing
-          </Link>
-        </nav>
-
-        <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
-          <section className="space-y-6">
-            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-200">
-              <AlarmClock className="size-3.5" />
-              Built for shuttle and rural transit teams with 5-50 vehicles
-            </p>
-            <h1 className="font-heading text-3xl leading-tight tracking-tight text-white sm:text-5xl">
-              Dispatch routes and drivers in minutes, not spreadsheets.
+    <main className="min-h-screen bg-[#0d1117] text-[#c9d1d9]">
+      <section className="relative overflow-hidden border-b border-[#21262d]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(31,111,235,0.18),_transparent_45%),radial-gradient(circle_at_bottom_left,_rgba(35,134,54,0.14),_transparent_40%)]" />
+        <div className="relative mx-auto flex max-w-6xl flex-col gap-10 px-6 py-20 md:px-10 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl space-y-6">
+            <span className="inline-flex rounded-full border border-[#30363d] bg-[#11161e] px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#58a6ff]">
+              Built for 5-50 vehicle operations
+            </span>
+            <h1 className="text-4xl font-bold leading-tight text-[#f0f6fc] md:text-6xl">
+              small_bus keeps routes, drivers, and rider alerts in one lightweight dispatch workspace.
             </h1>
-            <p className="max-w-xl text-base text-slate-200 sm:text-lg">
-              small_bus replaces patchwork scheduling with one focused dashboard:
-              route planning, driver assignments, and passenger updates in a
-              workflow your operations team can run every day.
+            <p className="max-w-xl text-lg text-[#8b949e]">
+              Stop juggling whiteboards and spreadsheet tabs. Plan routes in minutes, assign drivers with confidence, and notify passengers when service shifts.
             </p>
-            <div className="flex flex-wrap items-center gap-3">
-              {session.paid ? (
-                <Link href="/dashboard/routes">
-                  <Button className="h-10 bg-blue-500 px-4 text-sm hover:bg-blue-400">
-                    Open operations dashboard
-                    <ArrowRight className="size-4" />
-                  </Button>
-                </Link>
-              ) : (
-                <CheckoutButton className="h-10 bg-blue-500 px-4 text-sm hover:bg-blue-400" />
-              )}
-              <p className="text-xs text-slate-300">
-                Flat price: <span className="font-semibold text-white">$15/mo</span>
-                , cancel any time.
-              </p>
-            </div>
-          </section>
-
-          <aside className="rounded-2xl border border-border bg-[#0f1828] p-5">
-            <h2 className="font-heading text-lg font-semibold text-white">
-              Why teams switch
-            </h2>
-            <ul className="mt-4 space-y-3 text-sm text-slate-200">
-              <li className="flex items-start gap-2">
-                <CircleCheck className="mt-0.5 size-4 text-emerald-300" />
-                Eliminate multi-tab schedule edits and double-booked drivers.
-              </li>
-              <li className="flex items-start gap-2">
-                <CircleCheck className="mt-0.5 size-4 text-emerald-300" />
-                Replace dispatch systems that charge enterprise pricing.
-              </li>
-              <li className="flex items-start gap-2">
-                <CircleCheck className="mt-0.5 size-4 text-emerald-300" />
-                Keep managers and field supervisors aligned in real time.
-              </li>
-            </ul>
-          </aside>
-        </div>
-      </header>
-
-      <section className="mt-10 rounded-2xl border border-border bg-card/70 p-6 sm:p-8">
-        <h2 className="font-heading text-2xl font-semibold text-white">
-          The problem with legacy dispatch tools
-        </h2>
-        <p className="mt-4 max-w-3xl text-slate-200">
-          Small fleets are forced to choose between brittle spreadsheets and
-          enterprise transit software built for city-scale agencies. The result
-          is missed notifications, overtime surprises, and managers burning
-          hours on manual reconciliation every week.
-        </p>
-      </section>
-
-      <section className="mt-10 space-y-5">
-        <h2 className="font-heading text-2xl font-semibold text-white">
-          What small_bus delivers
-        </h2>
-        <div className="grid gap-4 md:grid-cols-3">
-          {featurePoints.map((feature) => (
-            <article
-              key={feature.title}
-              className="rounded-2xl border border-border bg-card/70 p-5"
-            >
-              <feature.icon className="size-5 text-blue-300" />
-              <h3 className="mt-3 font-heading text-lg font-semibold text-white">
-                {feature.title}
-              </h3>
-              <p className="mt-2 text-sm text-slate-200">{feature.description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="pricing" className="mt-10">
-        <div className="rounded-3xl border border-blue-400/30 bg-[linear-gradient(140deg,#122445_0%,#15315f_55%,#194072_100%)] p-6 sm:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h2 className="font-heading text-2xl font-semibold text-white">
-                Simple pricing for real operations
-              </h2>
-              <p className="mt-2 max-w-xl text-sm text-blue-100">
-                One plan for route planning, driver scheduling, and passenger
-                updates. No per-seat traps, no implementation fees, no contract.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-blue-200/30 bg-blue-950/40 px-4 py-3 text-right">
-              <p className="text-xs uppercase tracking-[0.12em] text-blue-200">
-                Starter Plan
-              </p>
-              <p className="font-heading text-3xl text-white">$15/mo</p>
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-4">
-            {session.paid ? (
-              <Link href="/dashboard/routes">
-                <Button className="h-10 bg-white px-4 text-slate-900 hover:bg-slate-100">
-                  Continue to dashboard
-                  <ArrowRight className="size-4" />
-                </Button>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <a
+                href={process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK}
+                className="inline-flex items-center justify-center rounded-md bg-[#238636] px-6 py-3 font-semibold text-white transition hover:bg-[#2ea043]"
+              >
+                Start for $15/month
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </a>
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center justify-center rounded-md border border-[#30363d] bg-[#11161e] px-6 py-3 font-semibold text-[#c9d1d9] transition hover:bg-[#161b22]"
+              >
+                View Product Tour
               </Link>
-            ) : (
-              <CheckoutButton className="h-10 bg-white px-4 text-slate-900 hover:bg-slate-100" />
-            )}
-            <p className="text-xs text-blue-100">
-              Includes mobile access, API endpoints, and secure cookie-based
-              access after checkout completion.
+            </div>
+          </div>
+          <div className="w-full max-w-md rounded-2xl border border-[#30363d] bg-[#11161e] p-6 shadow-2xl shadow-[#010409]">
+            <h2 className="text-xl font-semibold text-[#f0f6fc]">Dispatch Snapshot</h2>
+            <div className="mt-4 space-y-3 text-sm text-[#8b949e]">
+              <p className="flex items-center justify-between rounded-lg bg-[#0d1117] p-3">
+                Active Routes <span className="font-semibold text-[#f0f6fc]">12</span>
+              </p>
+              <p className="flex items-center justify-between rounded-lg bg-[#0d1117] p-3">
+                Drivers On Shift <span className="font-semibold text-[#f0f6fc]">18</span>
+              </p>
+              <p className="flex items-center justify-between rounded-lg bg-[#0d1117] p-3">
+                Rider Alerts Sent Today <span className="font-semibold text-[#f0f6fc]">74</span>
+              </p>
+              <p className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3 text-[#c9d1d9]">
+                Dispatch teams typically recover 8-12 admin hours per week after switching from manual scheduling.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 py-16 md:px-10">
+        <h2 className="text-3xl font-bold text-[#f0f6fc]">Why teams switch</h2>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <article className="rounded-xl border border-[#30363d] bg-[#11161e] p-6">
+            <CalendarClock className="h-8 w-8 text-[#58a6ff]" />
+            <h3 className="mt-4 text-xl font-semibold text-[#f0f6fc]">Scheduling takes too long</h3>
+            <p className="mt-2 text-[#8b949e]">
+              Dispatchers lose mornings reconciling driver availability, route conflicts, and rider commitments manually.
+            </p>
+          </article>
+          <article className="rounded-xl border border-[#30363d] bg-[#11161e] p-6">
+            <ChartLine className="h-8 w-8 text-[#3fb950]" />
+            <h3 className="mt-4 text-xl font-semibold text-[#f0f6fc]">Enterprise tools are overkill</h3>
+            <p className="mt-2 text-[#8b949e]">
+              Large city-focused platforms bury simple tasks in complex workflows and monthly contracts that small fleets do not need.
+            </p>
+          </article>
+          <article className="rounded-xl border border-[#30363d] bg-[#11161e] p-6">
+            <Bell className="h-8 w-8 text-[#d29922]" />
+            <h3 className="mt-4 text-xl font-semibold text-[#f0f6fc]">Riders miss service updates</h3>
+            <p className="mt-2 text-[#8b949e]">
+              Delay and reroute notices often happen too late, creating support calls and lost trust.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="border-y border-[#21262d] bg-[#11161e]">
+        <div className="mx-auto grid max-w-6xl gap-8 px-6 py-16 md:grid-cols-3 md:px-10">
+          <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-6">
+            <Bus className="h-8 w-8 text-[#58a6ff]" />
+            <h3 className="mt-4 text-lg font-semibold text-[#f0f6fc]">Route Planning</h3>
+            <p className="mt-2 text-[#8b949e]">
+              Build and adjust routes with stop-level context, estimated run times, and map previews that update live.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-6">
+            <CalendarClock className="h-8 w-8 text-[#3fb950]" />
+            <h3 className="mt-4 text-lg font-semibold text-[#f0f6fc]">Driver Scheduling</h3>
+            <p className="mt-2 text-[#8b949e]">
+              Assign drivers by availability, track shift load, and prevent conflicts before they impact service.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-6">
+            <ShieldCheck className="h-8 w-8 text-[#d29922]" />
+            <h3 className="mt-4 text-lg font-semibold text-[#f0f6fc]">Passenger Notifications</h3>
+            <p className="mt-2 text-[#8b949e]">
+              Broadcast delay notices through SMS, email, or push from one panel with status tracking.
             </p>
           </div>
         </div>
       </section>
 
-      <section className="mt-10 rounded-2xl border border-border bg-card/70 p-6 sm:p-8">
-        <h2 className="font-heading text-2xl font-semibold text-white">FAQ</h2>
-        <div className="mt-5 space-y-4">
-          {faqItems.map((item) => (
-            <article key={item.question} className="rounded-xl border border-border bg-[#101a2b] p-4">
-              <h3 className="font-medium text-slate-100">{item.question}</h3>
-              <p className="mt-2 text-sm text-slate-300">{item.answer}</p>
+      <section id="pricing" className="mx-auto max-w-6xl px-6 py-16 md:px-10">
+        <div className="rounded-2xl border border-[#30363d] bg-[#11161e] p-8 md:p-12">
+          <h2 className="text-3xl font-bold text-[#f0f6fc]">Simple pricing for lean operations teams</h2>
+          <p className="mt-3 text-[#8b949e]">One plan, full platform access, no setup fee, no long-term lock-in.</p>
+          <div className="mt-8 flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+            <div>
+              <p className="text-4xl font-bold text-[#f0f6fc]">$15<span className="text-lg text-[#8b949e]"> / month</span></p>
+              <ul className="mt-4 space-y-2 text-sm text-[#c9d1d9]">
+                <li>Unlimited routes, schedules, and drivers</li>
+                <li>Realtime dispatch dashboard</li>
+                <li>Passenger notification timeline</li>
+                <li>Email support from the product team</li>
+              </ul>
+            </div>
+            <div className="flex flex-col gap-3">
+              <a
+                href={process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK}
+                className="inline-flex items-center justify-center rounded-md bg-[#238636] px-6 py-3 font-semibold text-white transition hover:bg-[#2ea043]"
+              >
+                Buy Now with Stripe
+              </a>
+              <Link
+                href="/unlock"
+                className="text-sm font-medium text-[#58a6ff] transition hover:text-[#79c0ff]"
+              >
+                Already purchased? Unlock dashboard access
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-4xl px-6 pb-20 md:px-10">
+        <h2 className="text-3xl font-bold text-[#f0f6fc]">FAQ</h2>
+        <div className="mt-8 space-y-4">
+          {faqItems.map((faq) => (
+            <article key={faq.question} className="rounded-xl border border-[#30363d] bg-[#11161e] p-6">
+              <h3 className="text-lg font-semibold text-[#f0f6fc]">{faq.question}</h3>
+              <p className="mt-2 text-[#8b949e]">{faq.answer}</p>
             </article>
           ))}
         </div>
       </section>
-
-      <footer className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6 text-xs text-slate-400">
-        <p>small_bus for independent shuttle and transit operations.</p>
-        <p className="inline-flex items-center gap-1">
-          <Shield className="size-3.5" />
-          Secure checkout and role-based dashboard access
-        </p>
-      </footer>
     </main>
   );
 }

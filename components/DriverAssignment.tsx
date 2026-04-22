@@ -1,77 +1,73 @@
 "use client";
 
-import { BusFront, Clock3, UserRound } from "lucide-react";
+import { useState } from "react";
+import type { DriverRecord } from "@/lib/db/schema";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 
-import type { Driver, ScheduleEntry } from "@/lib/database";
+function statusVariant(status: DriverRecord["status"]) {
+  if (status === "available") {
+    return "success" as const;
+  }
 
-type DriverAssignmentProps = {
-  drivers: Driver[];
-  schedules: ScheduleEntry[];
-};
+  if (status === "on_route") {
+    return "warning" as const;
+  }
 
-export default function DriverAssignment({
+  return "neutral" as const;
+}
+
+export function DriverAssignment({
   drivers,
-  schedules,
-}: DriverAssignmentProps) {
-  const assignments = drivers.map((driver) => {
-    const upcoming = schedules.filter(
-      (entry) =>
-        entry.driverId === driver.id && new Date(entry.endTime).getTime() >= Date.now(),
-    );
-
-    return {
-      driver,
-      upcoming,
-    };
-  });
+  onStatusChange
+}: {
+  drivers: DriverRecord[];
+  onStatusChange: (driverId: number, status: DriverRecord["status"]) => Promise<void>;
+}) {
+  const [pendingId, setPendingId] = useState<number | null>(null);
 
   return (
-    <section className="space-y-3 rounded-2xl border border-border bg-card/80 p-4">
-      <header className="flex items-center gap-2">
-        <UserRound className="size-4 text-blue-300" />
-        <h3 className="font-heading text-base font-semibold">Driver Assignment Snapshot</h3>
-      </header>
+    <Card>
+      <CardHeader>
+        <CardTitle>Driver Availability Board</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {drivers.length === 0 ? (
+          <p className="text-sm text-[#8b949e]">No drivers yet. Add your first operator to start assigning routes.</p>
+        ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {assignments.map(({ driver, upcoming }) => (
-          <article
-            key={driver.id}
-            className="space-y-2 rounded-xl border border-border bg-[#121f34] p-3"
-          >
-            <div className="flex items-center justify-between">
-              <p className="font-medium">{driver.name}</p>
-              <span className="rounded-full bg-[#1d3457] px-2 py-1 text-xs text-blue-100">
-                {driver.status}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">{driver.phone}</p>
-            {upcoming.length ? (
-              <div className="space-y-2">
-                {upcoming.slice(0, 2).map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="rounded-lg border border-border bg-[#0f1828] p-2 text-xs"
-                  >
-                    <p className="flex items-center gap-1 font-medium text-slate-100">
-                      <BusFront className="size-3.5" />
-                      {entry.routeName}
-                    </p>
-                    <p className="mt-1 flex items-center gap-1 text-slate-300">
-                      <Clock3 className="size-3.5" />
-                      {new Date(entry.startTime).toLocaleString()} -{" "}
-                      {new Date(entry.endTime).toLocaleTimeString()}
-                    </p>
-                  </div>
-                ))}
+        {drivers.map((driver) => (
+          <div key={driver.id} className="rounded-lg border border-[#30363d] bg-[#0d1117] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold text-[#f0f6fc]">{driver.name}</p>
+                <p className="text-sm text-[#8b949e]">{driver.phone}</p>
               </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                No active assignments in the current schedule window.
-              </p>
-            )}
-          </article>
+              <Badge variant={statusVariant(driver.status)}>{driver.status.replace("_", " ")}</Badge>
+            </div>
+            <div className="mt-3 space-y-2">
+              <Label htmlFor={`status-${driver.id}`}>Set status</Label>
+              <select
+                id={`status-${driver.id}`}
+                defaultValue={driver.status}
+                disabled={pendingId === driver.id}
+                className="h-10 w-full rounded-md border border-[#30363d] bg-[#0d1117] px-3 text-sm text-[#c9d1d9] focus:outline-none focus:ring-2 focus:ring-[#58a6ff]"
+                onChange={async (event) => {
+                  const nextStatus = event.currentTarget.value as DriverRecord["status"];
+                  setPendingId(driver.id);
+                  await onStatusChange(driver.id, nextStatus);
+                  setPendingId(null);
+                }}
+              >
+                <option value="available">Available</option>
+                <option value="on_route">On Route</option>
+                <option value="offline">Offline</option>
+              </select>
+            </div>
+          </div>
         ))}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }

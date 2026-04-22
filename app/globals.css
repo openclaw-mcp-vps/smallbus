@@ -1,87 +1,24 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import "leaflet/dist/leaflet.css";
 @import "react-big-calendar/lib/css/react-big-calendar.css";
 
-@custom-variant dark (&:is(.dark *));
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-  --font-heading: var(--font-heading);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.25);
-}
-
 :root {
-  --background: #0d1117;
-  --foreground: #eef5ff;
-  --card: #121824;
-  --card-foreground: #e7efff;
-  --popover: #131c2c;
-  --popover-foreground: #e7efff;
-  --primary: #2f81f7;
-  --primary-foreground: #f8fbff;
-  --secondary: #1a2437;
-  --secondary-foreground: #d7e5ff;
-  --muted: #141d2d;
-  --muted-foreground: #9bb0d4;
-  --accent: #203152;
-  --accent-foreground: #f0f6ff;
-  --destructive: #ef5350;
-  --border: #27344f;
-  --input: #1a2538;
-  --ring: #60a5fa;
-  --radius: 0.9rem;
-  --font-sans: var(--font-sora);
-  --font-mono: var(--font-ibm-plex-mono);
-  --font-heading: var(--font-space-grotesk);
+  color-scheme: dark;
 }
 
 * {
-  border-color: var(--border);
-  outline-color: color-mix(in oklab, var(--ring) 45%, transparent);
+  border-color: #30363d;
 }
 
 html,
 body {
-  min-height: 100%;
-  background: var(--background);
-  color: var(--foreground);
-}
-
-html {
-  font-family: var(--font-sans);
+  background: #0d1117;
+  color: #c9d1d9;
 }
 
 body {
   margin: 0;
-  background-image:
-    radial-gradient(circle at 10% -15%, rgba(47, 129, 247, 0.22), transparent 40%),
-    radial-gradient(circle at 88% 12%, rgba(36, 198, 255, 0.12), transparent 35%),
-    linear-gradient(135deg, rgba(10, 16, 28, 0.55), rgba(13, 17, 23, 0.94));
-  background-attachment: fixed;
+  min-height: 100vh;
 }
 
 a {
@@ -89,54 +26,33 @@ a {
   text-decoration: none;
 }
 
-input,
-select,
-textarea {
-  color: var(--foreground);
-}
-
-.leaflet-container {
-  background: #0f1726;
-}
-
 .rbc-calendar {
-  border-radius: 1rem;
-  border: 1px solid var(--border);
-  background: #111a2a;
-  color: var(--foreground);
+  background: #0d1117;
+  color: #c9d1d9;
 }
 
-.rbc-toolbar {
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.rbc-btn-group button {
-  border-radius: 0.45rem;
-  border: 1px solid var(--border);
-  background: #162036;
-  color: var(--foreground);
-}
-
-.rbc-btn-group button:hover,
-.rbc-btn-group button.rbc-active {
-  background: #2f81f7;
-  color: #f8fbff;
-}
-
+.rbc-toolbar,
+.rbc-header,
+.rbc-time-header-content,
+.rbc-time-content,
+.rbc-month-view,
 .rbc-time-view,
-.rbc-month-view {
-  border-color: var(--border);
+.rbc-agenda-view table.rbc-agenda-table {
+  border-color: #30363d;
 }
 
+.rbc-off-range-bg,
 .rbc-today {
-  background: rgba(47, 129, 247, 0.13);
-}
-
-.rbc-off-range-bg {
-  background: #0e1524;
+  background: #11161e;
 }
 
 .rbc-event {
-  border: 0;
+  background: #1f6feb;
+  border: none;
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  border-radius: 0.75rem;
 }
